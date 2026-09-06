@@ -1,4 +1,4 @@
-# omarchy-remote
+# hyprland-remote
 
 A phone-sized control panel for an [Omarchy](https://omarchy.org/) desktop's
 monitors and windows. Zero dependencies — a single Node server and one HTML
