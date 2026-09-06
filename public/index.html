@@ -41,6 +41,8 @@
   .quickkeys { display: flex; gap: 6px; }
   .quickkeys button { flex: 1; border: 0; border-radius: 6px; background: var(--panel2);
     color: var(--ink); padding: 10px; font-size: 14px; }
+  .quickkeys.media button { font-size: 20px; padding: 8px; }
+  .medialbl { color: var(--dim); font-size: 12px; padding: 0 2px; }
   textarea { width: 100%; box-sizing: border-box; background: var(--panel2); color: var(--ink);
     border: 0; border-radius: 8px; padding: 8px; font: 15px/1.4 ui-monospace, monospace;
     resize: vertical; min-height: 90px; }
@@ -94,6 +96,10 @@
       <div class="cardhdr">type into focused window<span><button id="closeKeys">✕</button></span></div>
       <div class="quickkeys">
         <button data-key="esc">esc</button><button data-key="tab">tab</button><button data-key="space">space</button><button data-key="enter">↵</button>
+      </div>
+      <div class="medialbl">media <span id="mediaName" style="color:var(--dim)"></span></div>
+      <div class="quickkeys media">
+        <button data-ma="prev">⏮</button><button data-ma="playpause">⏯</button><button data-ma="next">⏭</button>
       </div>
       <textarea id="typeBox" rows="4" placeholder="text to type…"></textarea>
       <button id="sendType" class="send">send</button>
@@ -242,6 +248,19 @@ for (const b of keysEl.querySelectorAll(".quickkeys button")) {
   b.addEventListener("click", async () => {
     try { await send("key", { key: b.dataset.key }); }
     catch (e) { err.textContent = "failed: " + (e.message || e); }
+  });
+}
+const mediaName = document.getElementById("mediaName");
+for (const b of keysEl.querySelectorAll(".quickkeys.media button")) {
+  b.addEventListener("click", async () => {
+    try {
+      const r = await q("/api/media");
+      const players = (await r.json()).players || [];
+      if (!players.length) throw new Error("no media player running");
+      const player = players[0];
+      mediaName.textContent = player.replace("org.mpris.MediaPlayer2.", "");
+      await send("media", { player, action: b.dataset.ma });
+    } catch (e) { err.textContent = "failed: " + (e.message || e); }
   });
 }
 document.getElementById("sendType").addEventListener("click", async () => {

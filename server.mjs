@@ -18,7 +18,11 @@ import net from "node:net";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { randomBytes } from "node:crypto";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import os from "node:os";
+
+const run = promisify(execFile);
 
 const flag = (name, dflt) => {
   const i = process.argv.indexOf(name);
@@ -158,6 +162,20 @@ function listApps() {
   return apps;
 }
 
+// --- MPRIS (media players on the session bus) --------------------------------
+
+const MPRIS_RE = /^org\.mpris\.MediaPlayer2\.[A-Za-z0-9_.-]+$/;
+const MEDIA_METHODS = { playpause: "PlayPause", next: "Next", prev: "Previous", stop: "Stop" };
+
+async function mprisPlayers() {
+  const { stdout } = await run("busctl", ["--user", "list"]);
+  return stdout
+    .split("\n")
+    .map((l) => l.trim().split(/\s+/)[0])
+    .filter((name) => MPRIS_RE.test(name))
+    .sort();
+}
+
 async function doAction(body) {
   const op = body.op;
   const addr = (s) => (typeof s === "string" && ADDR.test(s) ? s : null);
@@ -229,6 +247,18 @@ async function doAction(body) {
       await dispatch(`hl.dsp.exec_cmd(${luaStr(`wtype -k ${key}`)})`);
       return;
     }
+    case "media": {
+      // MPRIS transport control. Keyboards cannot reach XWayland windows, so
+      // media apps are driven over the session bus instead (works without
+      // focus). Player and action are validated against a live bus scan.
+      const action = MEDIA_METHODS[body.action];
+      const player = typeof body.player === "string" ? body.player : null;
+      if (!action || !player || !MPRIS_RE.test(player)) throw new Error("bad media args");
+      const players = await mprisPlayers();
+      if (!players.includes(player)) throw new Error("media player not running");
+      await run("busctl", ["--user", "call", player, "/org/mpris/MediaPlayer2", "org.mpris.MediaPlayer2.Player", action]);
+      return;
+    }
     default:
       throw new Error(`unknown op ${op}`);
   }
@@ -257,6 +287,9 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === "GET" && url.pathname === "/api/apps") {
       return send(200, JSON.stringify(listApps()));
+    }
+    if (req.method === "GET" && url.pathname === "/api/media") {
+      return send(200, JSON.stringify({ players: await mprisPlayers() }));
     }
     if (req.method === "POST" && url.pathname === "/api/action") {
       let raw = "";
