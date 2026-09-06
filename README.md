@@ -15,8 +15,14 @@ Each column lists the windows on that monitor (most recently focused first).
 - **`⤢`** — toggle floating
 - **`✕`** — close the window
 - **`focus`** (column header) — focus that monitor
+- **`apps`** (top bar) — launch any installed application (XDG desktop
+  entries, filterable list)
+- **`⌨`** (top bar) — type into the focused window, with `esc` / `tab` / `↵`
+  keys for the desktop app
 
-State refreshes every ~1 s, so the page follows the desktop live.
+State refreshes every ~1 s, so the page follows the desktop live. Launches
+and keystrokes run through Hyprland's own `exec_cmd`, so apps and `wtype`
+inherit the compositor's environment.
 
 ## How it works
 
@@ -35,7 +41,8 @@ This works on Hyprland's Lua-config generation (Hyprland ≥ 0.55, Omarchy 4).
 
 ## Run it
 
-Needs Node ≥ 22. Start it from a terminal inside your Hyprland session:
+Needs Node ≥ 22, plus `gtk-launch` (app launching) and `wtype` (typing) on
+the machine. Start it from a terminal inside your Hyprland session:
 
 ```sh
 node server.mjs

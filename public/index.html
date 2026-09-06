@@ -19,6 +19,33 @@
   #dot.on { background: var(--green); } #dot.off { background: var(--red); }
   #dot.err { background: var(--red); animation: blink 1s infinite; }
   @keyframes blink { 50% { opacity: .3; } }
+  .tool { border: 0; border-radius: 8px; background: var(--panel2); color: var(--ink);
+    font-size: 14px; padding: 6px 10px; }
+  .tool:active { filter: brightness(1.5); }
+  .overlay { position: fixed; inset: 0; background: rgba(5,6,10,.7); display: flex;
+    align-items: center; justify-content: center; z-index: 10; }
+  .overlay.hidden { display: none; }
+  .card { width: min(92vw, 560px); max-height: 86vh; display: flex; flex-direction: column;
+    background: var(--panel); border-radius: 12px; padding: 10px; gap: 8px; }
+  .cardhdr { display: flex; justify-content: space-between; align-items: center;
+    font-weight: 700; gap: 8px; }
+  .cardhdr span { display: flex; gap: 6px; align-items: center; font-weight: 400; }
+  .cardhdr input { background: var(--panel2); color: var(--ink); border: 0; border-radius: 6px;
+    padding: 6px 8px; font-size: 14px; }
+  .cardhdr button { border: 0; border-radius: 6px; background: var(--panel2); color: var(--ink);
+    padding: 6px 10px; }
+  .list { overflow-y: auto; min-height: 40vh; display: flex; flex-direction: column; gap: 2px; }
+  .list button { text-align: left; border: 0; border-radius: 6px; background: transparent;
+    color: var(--ink); padding: 9px 8px; font-size: 15px; }
+  .list button:active { background: var(--panel2); }
+  .quickkeys { display: flex; gap: 6px; }
+  .quickkeys button { flex: 1; border: 0; border-radius: 6px; background: var(--panel2);
+    color: var(--ink); padding: 10px; font-size: 14px; }
+  textarea { width: 100%; box-sizing: border-box; background: var(--panel2); color: var(--ink);
+    border: 0; border-radius: 8px; padding: 8px; font: 15px/1.4 ui-monospace, monospace;
+    resize: vertical; min-height: 90px; }
+  .send { border: 0; border-radius: 8px; background: var(--accent); color: #0f1115;
+    padding: 11px; font-weight: 700; font-size: 15px; }
   #cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 8px; }
   .col { background: var(--panel); border-radius: 10px; overflow: hidden; }
   .col.focus { outline: 2px solid var(--accent); }
@@ -45,8 +72,31 @@
 </style>
 </head>
 <body>
-  <div id="status"><span id="dot"></span><span id="err"></span></div>
+  <div id="status"><span id="dot"></span><span id="err"></span>
+    <span style="margin-left:auto;display:flex;gap:6px">
+      <button id="btnApps" class="tool">apps</button>
+      <button id="btnKeys" class="tool">⌨</button>
+    </span>
+  </div>
   <div id="cols"></div>
+
+  <div id="sheet" class="overlay hidden">
+    <div class="card">
+      <div class="cardhdr">launch<span><input id="appFilter" placeholder="filter…"><button id="closeApps">✕</button></span></div>
+      <div id="appList" class="list"></div>
+    </div>
+  </div>
+
+  <div id="keys" class="overlay hidden">
+    <div class="card">
+      <div class="cardhdr">type into focused window<span><button id="closeKeys">✕</button></span></div>
+      <div class="quickkeys">
+        <button data-key="esc">esc</button><button data-key="tab">tab</button><button data-key="enter">↵</button>
+      </div>
+      <textarea id="typeBox" rows="4" placeholder="text to type…"></textarea>
+      <button id="sendType" class="send">send</button>
+    </div>
+  </div>
 
 <script>
 const TOKEN = new URL(location.href).searchParams.get("t") ?? "";
@@ -133,6 +183,61 @@ async function refresh() {
     dot.className = "off"; err.textContent = "no connection";
   }
 }
+
+// --- apps sheet --------------------------------------------------------------
+
+const sheet = document.getElementById("sheet");
+const appList = document.getElementById("appList");
+const appFilter = document.getElementById("appFilter");
+let ALL_APPS = [];
+
+async function loadApps(filter = "") {
+  try {
+    const r = await q("/api/apps");
+    ALL_APPS = await r.json();
+  } catch { ALL_APPS = []; }
+  const f = filter.toLowerCase();
+  appList.innerHTML = ALL_APPS.filter((a) => !f || a.name.toLowerCase().includes(f) || a.id.toLowerCase().includes(f))
+    .map((a) => `<button data-id="${esc(a.id)}">${esc(a.name)}</button>`).join("") || '<div class="empty">no matches</div>';
+  for (const b of appList.querySelectorAll("button")) {
+    b.addEventListener("click", async () => {
+      try { await send("launch", { id: b.dataset.id }); sheet.classList.add("hidden"); }
+      catch (e) { err.textContent = "failed: " + (e.message || e); }
+    });
+  }
+}
+
+document.getElementById("btnApps").addEventListener("click", async () => {
+  sheet.classList.remove("hidden");
+  appFilter.value = "";
+  await loadApps();
+  appFilter.focus();
+});
+document.getElementById("closeApps").addEventListener("click", () => sheet.classList.add("hidden"));
+appFilter.addEventListener("input", () => loadApps(appFilter.value));
+
+// --- keyboard -----------------------------------------------------------------
+
+const keysEl = document.getElementById("keys");
+const typeBox = document.getElementById("typeBox");
+
+document.getElementById("btnKeys").addEventListener("click", () => {
+  keysEl.classList.remove("hidden");
+  typeBox.focus();
+});
+document.getElementById("closeKeys").addEventListener("click", () => keysEl.classList.add("hidden"));
+for (const b of keysEl.querySelectorAll(".quickkeys button")) {
+  b.addEventListener("click", async () => {
+    try { await send("key", { key: b.dataset.key }); }
+    catch (e) { err.textContent = "failed: " + (e.message || e); }
+  });
+}
+document.getElementById("sendType").addEventListener("click", async () => {
+  const text = typeBox.value;
+  if (!text) return;
+  try { await send("type", { text }); typeBox.value = ""; }
+  catch (e) { err.textContent = "failed: " + (e.message || e); }
+});
 
 refresh();
 setInterval(refresh, 1200);

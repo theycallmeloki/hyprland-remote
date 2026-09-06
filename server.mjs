@@ -106,6 +106,57 @@ async function getState() {
 // --- actions (validated ids/names only) --------------------------------------
 
 const ADDR = /^0x[0-9a-f]+$/;
+const APP_ID = /^[A-Za-z0-9_.-]+$/;
+
+/** Shell-single-quote a string (safe inside `sh -c`). */
+function shq(s) {
+  return "'" + s.replace(/'/g, `'\\''`) + "'";
+}
+
+/** Quote a string as a Lua double-quoted literal for `hl.dsp.exec_cmd(...)`. */
+function luaStr(s) {
+  return '"' + s.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, "\\n").replace(/\r/g, "\\r").replace(/\t/g, "\\t") + '"';
+}
+
+/** The desktop entries a windowing app can launch: user dir first, then
+ *  system; first file of a given id wins (override semantics). */
+function listApps() {
+  const dirs = [join(os.homedir(), ".local/share/applications"), "/usr/share/applications"];
+  const apps = [];
+  const seen = new Set();
+  for (const dir of dirs) {
+    let files;
+    try {
+      files = readdirSync(dir).filter((f) => f.endsWith(".desktop"));
+    } catch {
+      continue;
+    }
+    for (const f of files) {
+      const id = f.slice(0, -".desktop".length);
+      if (seen.has(id)) continue;
+      seen.add(id);
+      try {
+        const entry = {};
+        let inEntry = false;
+        for (const line of readFileSync(join(dir, f), "utf8").split("\n")) {
+          const t = line.trim();
+          if (t.startsWith("[")) { inEntry = t === "[Desktop Entry]"; continue; }
+          if (!inEntry) continue;
+          const eq = t.indexOf("=");
+          if (eq < 0) continue;
+          entry[t.slice(0, eq).trim()] = t.slice(eq + 1).trim();
+        }
+        if (entry.Type !== undefined && entry.Type !== "Application") continue;
+        if (!entry.Exec || entry.NoDisplay === "true" || entry.Hidden === "true") continue;
+        apps.push({ id, name: entry.Name || id });
+      } catch {
+        /* unreadable entry — skip */
+      }
+    }
+  }
+  apps.sort((a, b) => a.name.localeCompare(b.name));
+  return apps;
+}
 
 async function doAction(body) {
   const op = body.op;
@@ -156,6 +207,28 @@ async function doAction(body) {
       await dispatch(`hl.dsp.window.float({ window = ${JSON.stringify(`address:${a}`)} })`);
       return;
     }
+    case "launch": {
+      const id = typeof body.id === "string" && APP_ID.test(body.id) ? body.id : null;
+      if (!id || !listApps().some((a) => a.id === id)) throw new Error("unknown app");
+      // Run through Hyprland's exec so the app inherits the compositor's
+      // environment (WAYLAND_DISPLAY etc.), like Omarchy's own launches.
+      await dispatch(`hl.dsp.exec_cmd(${luaStr(`gtk-launch ${id}`)})`);
+      return;
+    }
+    case "type": {
+      const text = typeof body.text === "string" ? body.text.slice(0, 1000) : null;
+      if (text === null) throw new Error("bad text");
+      await dispatch(`hl.dsp.exec_cmd(${luaStr(`wtype -- ${shq(text)}`)})`);
+      return;
+    }
+    case "key": {
+      // Fixed keysym allow-list; nothing off the wire reaches a shell raw.
+      const KEYS = { enter: "Return", tab: "Tab", esc: "Escape" };
+      const key = KEYS[body.key];
+      if (!key) throw new Error("bad key");
+      await dispatch(`hl.dsp.exec_cmd(${luaStr(`wtype -k ${key}`)})`);
+      return;
+    }
     default:
       throw new Error(`unknown op ${op}`);
   }
@@ -181,6 +254,9 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === "GET" && url.pathname === "/api/state") {
       return send(200, JSON.stringify(await getState()));
+    }
+    if (req.method === "GET" && url.pathname === "/api/apps") {
+      return send(200, JSON.stringify(listApps()));
     }
     if (req.method === "POST" && url.pathname === "/api/action") {
       let raw = "";
