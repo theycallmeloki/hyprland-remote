@@ -223,7 +223,7 @@ async function doAction(body) {
     }
     case "key": {
       // Fixed keysym allow-list; nothing off the wire reaches a shell raw.
-      const KEYS = { enter: "Return", tab: "Tab", esc: "Escape" };
+      const KEYS = { enter: "Return", tab: "Tab", esc: "Escape", space: "space" };
       const key = KEYS[body.key];
       if (!key) throw new Error("bad key");
       await dispatch(`hl.dsp.exec_cmd(${luaStr(`wtype -k ${key}`)})`);
