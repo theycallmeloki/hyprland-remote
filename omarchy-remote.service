@@ -1,0 +1,14 @@
+[Unit]
+Description=omarchy-remote phone panel
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/Documents/omarchy-remote
+Environment=XDG_RUNTIME_DIR=%t
+ExecStart=/home/laneone/.local/share/mise/installs/node/26.7.0/bin/node server.mjs
+Restart=on-failure
+
+[Install]
+WantedBy=graphical-session.target

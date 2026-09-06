@@ -51,6 +51,19 @@ phone:      http://192.168.1.147:8791/?t=milady
 Open the LAN URL on your phone (same Wi-Fi), or save it as a home-screen
 shortcut. Port defaults to 8791; override with `--port` / `--host`.
 
+### Run as a systemd user service
+
+So it starts and stops with your graphical session:
+
+```sh
+cp omarchy-remote.service ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now omarchy-remote.service
+journalctl --user -u omarchy-remote -f   # logs
+```
+
+Edit the `ExecStart` node path in the unit if your Node lives elsewhere.
+
 ## Change the token
 
 The default access token is `milady`. **Change it before exposing this on a
@@ -73,6 +86,7 @@ sudo ufw allow from 192.168.1.0/24 to any port 8791 proto tcp
 ## Layout
 
 ```
-server.mjs            Node server: Hyprland socket client + token-guarded HTTP
-public/index.html     the panel — no framework, no dependencies
+server.mjs              Node server: Hyprland socket client + token-guarded HTTP
+public/index.html       the panel — no framework, no dependencies
+omarchy-remote.service  systemd user unit (see "Run as a systemd user service")
 ```
