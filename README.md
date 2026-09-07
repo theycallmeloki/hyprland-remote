@@ -51,7 +51,7 @@ node server.mjs
 It prints two URLs — one for localhost, one for your LAN IP:
 
 ```
-omarchy-remote on http://127.0.0.1:8791/?t=milady
+hyprland-remote on http://127.0.0.1:8791/?t=milady
 phone:      http://192.168.1.147:8791/?t=milady
 ```
 
@@ -63,10 +63,10 @@ shortcut. Port defaults to 8791; override with `--port` / `--host`.
 So it starts and stops with your graphical session:
 
 ```sh
-cp omarchy-remote.service ~/.config/systemd/user/
+cp hyprland-remote.service ~/.config/systemd/user/
 systemctl --user daemon-reload
-systemctl --user enable --now omarchy-remote.service
-journalctl --user -u omarchy-remote -f   # logs
+systemctl --user enable --now hyprland-remote.service
+journalctl --user -u hyprland-remote -f   # logs
 ```
 
 Edit the `ExecStart` node path in the unit if your Node lives elsewhere.
@@ -78,7 +78,7 @@ network you do not fully trust** — anyone with the token can move, focus,
 fullscreen, float and close windows on the machine.
 
 ```sh
-OMARCHY_REMOTE_TOKEN=your-own-secret node server.mjs
+HYPRLAND_REMOTE_TOKEN=your-own-secret node server.mjs
 ```
 
 The token is required on every request (`?t=<token>` query or `x-token`
@@ -95,5 +95,5 @@ sudo ufw allow from 192.168.1.0/24 to any port 8791 proto tcp
 ```
 server.mjs              Node server: Hyprland socket client + token-guarded HTTP
 public/index.html       the panel — no framework, no dependencies
-omarchy-remote.service  systemd user unit (see "Run as a systemd user service")
+hyprland-remote.service  systemd user unit (see "Run as a systemd user service")
 ```

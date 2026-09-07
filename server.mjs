@@ -1,4 +1,4 @@
-// omarchy-remote — a phone-sized control panel for Hyprland monitors.
+// hyprland-remote — a phone-sized control panel for Hyprland monitors.
 // Zero dependencies. Node >= 22.
 //
 //   node server.mjs            # serve on 0.0.0.0:8791
@@ -30,7 +30,7 @@ const flag = (name, dflt) => {
 };
 const PORT = Number(flag("--port", "8791"));
 const HOST = flag("--host", "0.0.0.0");
-const TOKEN = process.env.OMARCHY_REMOTE_TOKEN || "milady";
+const TOKEN = process.env.HYPRLAND_REMOTE_TOKEN || "milady";
 
 // --- Hyprland request socket -------------------------------------------------
 
@@ -313,7 +313,7 @@ server.listen(PORT, HOST, () => {
     .flat()
     .filter((i) => i && i.family === "IPv4" && !i.internal)
     .map((i) => i.address)[0];
-  console.log(`omarchy-remote on http://127.0.0.1:${PORT}/?t=${TOKEN}`);
+  console.log(`hyprland-remote on http://127.0.0.1:${PORT}/?t=${TOKEN}`);
   if (lan) console.log(`phone:      http://${lan}:${PORT}/?t=${TOKEN}`);
   console.log("quit with Ctrl-C");
 });
